@@ -1,226 +1,565 @@
 /**
- * Enhanced API Service with Better Error Handling and Token Management
+ * API Service for IT Lab Scheduler
+ * Enhanced API client with error handling and authentication
  */
 
-class API {
+class ApiService {
     constructor() {
-        this.baseURL = window.location.origin; // Use current origin
-        this.interceptors = [];
+        this.baseURL = window.location.origin;
+        this.defaultHeaders = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        this.requests = new Map(); // For request tracking
     }
 
+    /**
+     * Get authentication token
+     */
+    getToken() {
+        return localStorage.getItem('access_token');
+    }
+
+    /**
+     * Set authentication token
+     */
+    setToken(token) {
+        if (token) {
+            localStorage.setItem('access_token', token);
+        } else {
+            localStorage.removeItem('access_token');
+        }
+    }
+
+    /**
+     * Get request headers
+     */
+    getHeaders(customHeaders = {}) {
+        const headers = { ...this.defaultHeaders, ...customHeaders };
+        const token = this.getToken();
+        
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        return headers;
+    }
+
+    /**
+     * Generate request ID for tracking
+     */
+    generateRequestId() {
+        return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * Base request method
+     */
     async request(endpoint, options = {}) {
-        const url = `${this.baseURL}${endpoint}`;
+        const requestId = this.generateRequestId();
+        const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
+        
         const config = {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            },
-            ...options
+            method: 'GET',
+            headers: this.getHeaders(options.headers),
+            ...options,
+            signal: options.signal || this.createAbortSignal(requestId)
         };
 
-        // Add authorization header if token exists
-        const token = localStorage.getItem('access_token');
-        if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        // Add request interceptor
-        for (const interceptor of this.interceptors) {
-            if (interceptor.request) {
-                interceptor.request(config);
-            }
+        // Handle request body
+        if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+            config.body = JSON.stringify(options.body);
         }
 
         try {
+            this.requests.set(requestId, { url, config });
+            
             const response = await fetch(url, config);
-            let data;
-
-            // Handle different response types
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                data = await response.json();
-            } else {
-                data = await response.text();
-            }
-
-            // Add response interceptor
-            for (const interceptor of this.interceptors) {
-                if (interceptor.response) {
-                    interceptor.response(response, data);
-                }
-            }
-
+            const data = await this.parseResponse(response);
+            
+            this.requests.delete(requestId);
+            
             if (!response.ok) {
-                const error = new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
-                error.status = response.status;
-                error.data = data;
+                throw this.createError(response, data);
+            }
+            
+            return {
+                success: true,
+                data: data,
+                status: response.status,
+                headers: response.headers
+            };
+            
+        } catch (error) {
+            this.requests.delete(requestId);
+            
+            if (error.name === 'AbortError') {
+                console.warn('Request aborted:', url);
                 throw error;
             }
-
-            return data;
-        } catch (error) {
+            
             console.error('API Request failed:', error);
-
-            // Handle token expiration (401)
-            if (error.status === 401) {
-                const refreshed = await this.handleTokenRefresh();
-                if (refreshed) {
-                    // Retry the original request with new token
-                    return this.request(endpoint, options);
-                } else {
-                    this.redirectToLogin();
-                    throw error;
-                }
-            }
-
-            // Handle network errors
-            if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                throw new Error('Network error: Unable to connect to server');
-            }
-
             throw error;
         }
     }
 
-    async handleTokenRefresh() {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (!refreshToken) {
-            console.warn('No refresh token available');
-            return false;
+    /**
+     * Create abort signal for request cancellation
+     */
+    createAbortSignal(requestId) {
+        const controller = new AbortController();
+        this.requests.set(requestId, { 
+            ...this.requests.get(requestId),
+            controller 
+        });
+        return controller.signal;
+    }
+
+    /**
+     * Parse response based on content type
+     */
+    async parseResponse(response) {
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+            return await response.json();
         }
+        
+        if (contentType && contentType.includes('text/')) {
+            return await response.text();
+        }
+        
+        return await response.blob();
+    }
 
-        try {
-            const response = await this.post('/auth/refresh', {
-                refresh_token: refreshToken
-            });
+    /**
+     * Create standardized error object
+     */
+    createError(response, data) {
+        const error = new Error(data?.message || `HTTP ${response.status}: ${response.statusText}`);
+        error.status = response.status;
+        error.data = data;
+        error.response = response;
+        
+        // Handle specific status codes
+        switch (response.status) {
+            case 401:
+                error.code = 'UNAUTHORIZED';
+                error.message = 'Authentication required';
+                this.handleUnauthorized();
+                break;
+            case 403:
+                error.code = 'FORBIDDEN';
+                error.message = 'Access denied';
+                break;
+            case 404:
+                error.code = 'NOT_FOUND';
+                error.message = 'Resource not found';
+                break;
+            case 422:
+                error.code = 'VALIDATION_ERROR';
+                error.message = 'Validation failed';
+                break;
+            case 429:
+                error.code = 'RATE_LIMITED';
+                error.message = 'Too many requests';
+                break;
+            case 500:
+                error.code = 'SERVER_ERROR';
+                error.message = 'Internal server error';
+                break;
+            default:
+                error.code = 'UNKNOWN_ERROR';
+        }
+        
+        return error;
+    }
 
-            if (response.success && response.data.access_token) {
-                localStorage.setItem('access_token', response.data.access_token);
-                console.log('Token refreshed successfully');
-                return true;
+    /**
+     * Handle unauthorized access
+     */
+    handleUnauthorized() {
+        this.setToken(null);
+        localStorage.removeItem('user_data');
+        
+        // Redirect to login if not already there
+        if (!window.location.pathname.includes('/auth')) {
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
+        }
+    }
+
+    /**
+     * Cancel ongoing request
+     */
+    cancelRequest(requestId) {
+        const request = this.requests.get(requestId);
+        if (request && request.controller) {
+            request.controller.abort();
+            this.requests.delete(requestId);
+        }
+    }
+
+    /**
+     * Cancel all ongoing requests
+     */
+    cancelAllRequests() {
+        this.requests.forEach((request, requestId) => {
+            if (request.controller) {
+                request.controller.abort();
             }
-        } catch (error) {
-            console.error('Token refresh failed:', error);
-        }
-
-        return false;
-    }
-
-    redirectToLogin() {
-        console.warn('Authentication required, redirecting to login...');
-        localStorage.clear();
-        // Instead of reloading, show auth screen
-        if (window.app && typeof window.app.showAuthScreen === 'function') {
-            window.app.showAuthScreen();
-        } else {
-            window.location.reload();
-        }
-    }
-
-    // HTTP Methods
-    async get(endpoint, params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-        return this.request(url);
-    }
-
-    async post(endpoint, data = {}) {
-        return this.request(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(data)
+            this.requests.delete(requestId);
         });
     }
 
-    async put(endpoint, data = {}) {
-        return this.request(endpoint, {
+    /**
+     * GET request
+     */
+    async get(endpoint, options = {}) {
+        return this.request(endpoint, { ...options, method: 'GET' });
+    }
+
+    /**
+     * POST request
+     */
+    async post(endpoint, data = null, options = {}) {
+        return this.request(endpoint, { 
+            ...options, 
+            method: 'POST',
+            body: data
+        });
+    }
+
+    /**
+     * PUT request
+     */
+    async put(endpoint, data = null, options = {}) {
+        return this.request(endpoint, { 
+            ...options, 
             method: 'PUT',
-            body: JSON.stringify(data)
+            body: data
         });
     }
 
-    async patch(endpoint, data = {}) {
-        return this.request(endpoint, {
+    /**
+     * PATCH request
+     */
+    async patch(endpoint, data = null, options = {}) {
+        return this.request(endpoint, { 
+            ...options, 
             method: 'PATCH',
-            body: JSON.stringify(data)
+            body: data
         });
     }
 
-    async delete(endpoint) {
-        return this.request(endpoint, {
-            method: 'DELETE'
-        });
+    /**
+     * DELETE request
+     */
+    async delete(endpoint, options = {}) {
+        return this.request(endpoint, { ...options, method: 'DELETE' });
     }
 
-    // File upload
-    async upload(endpoint, formData) {
-        return this.request(endpoint, {
+    /**
+     * Upload file with progress tracking
+     */
+    async upload(endpoint, file, onProgress = null, options = {}) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const config = {
             method: 'POST',
+            body: formData,
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                'Authorization': `Bearer ${this.getToken()}`
             },
-            body: formData
+            ...options
+        };
+        
+        // Add progress tracking if supported
+        if (onProgress && typeof XMLHttpRequest !== 'undefined') {
+            return this.uploadWithProgress(endpoint, formData, onProgress, config);
+        }
+        
+        return this.request(endpoint, config);
+    }
+
+    /**
+     * Upload with progress tracking using XMLHttpRequest
+     */
+    uploadWithProgress(endpoint, formData, onProgress, options = {}) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const url = endpoint.startsWith('http') ? endpoint : `${this.baseURL}${endpoint}`;
+            
+            xhr.open('POST', url);
+            
+            // Set headers
+            if (options.headers) {
+                Object.keys(options.headers).forEach(key => {
+                    xhr.setRequestHeader(key, options.headers[key]);
+                });
+            }
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percent = (event.loaded / event.total) * 100;
+                    onProgress(percent, event.loaded, event.total);
+                }
+            });
+            
+            // Handle response
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        resolve({
+                            success: true,
+                            data: data,
+                            status: xhr.status
+                        });
+                    } catch (error) {
+                        resolve({
+                            success: true,
+                            data: xhr.responseText,
+                            status: xhr.status
+                        });
+                    }
+                } else {
+                    reject(this.createError({
+                        status: xhr.status,
+                        statusText: xhr.statusText
+                    }, xhr.responseText));
+                }
+            });
+            
+            // Handle errors
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error occurred'));
+            });
+            
+            xhr.addEventListener('abort', () => {
+                reject(new Error('Request aborted'));
+            });
+            
+            xhr.send(formData);
         });
     }
 
-    // Interceptor management
-    addInterceptor(interceptor) {
-        this.interceptors.push(interceptor);
+    /**
+     * Download file
+     */
+    async download(endpoint, filename = null, options = {}) {
+        const response = await this.request(endpoint, {
+            ...options,
+            parseResponse: false
+        });
+        
+        if (response.success) {
+            const blob = response.data;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || this.getFilenameFromHeaders(response.headers) || 'download';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+        
+        return response;
     }
 
-    removeInterceptor(interceptor) {
-        const index = this.interceptors.indexOf(interceptor);
-        if (index > -1) {
-            this.interceptors.splice(index, 1);
+    /**
+     * Extract filename from response headers
+     */
+    getFilenameFromHeaders(headers) {
+        const contentDisposition = headers.get('content-disposition');
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (filenameMatch) {
+                return filenameMatch[1];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Health check
+     */
+    async healthCheck() {
+        try {
+            const response = await this.get('/health', { timeout: 5000 });
+            return {
+                healthy: true,
+                timestamp: new Date().toISOString(),
+                response: response.data
+            };
+        } catch (error) {
+            return {
+                healthy: false,
+                timestamp: new Date().toISOString(),
+                error: error.message
+            };
         }
     }
 
-    // Utility methods
-    setBaseURL(url) {
-        this.baseURL = url;
+    /**
+     * Batch requests
+     */
+    async batch(requests) {
+        const results = await Promise.allSettled(
+            requests.map(req => this.request(req.endpoint, req.options))
+        );
+        
+        return results.map((result, index) => ({
+            request: requests[index],
+            success: result.status === 'fulfilled',
+            data: result.status === 'fulfilled' ? result.value : null,
+            error: result.status === 'rejected' ? result.reason : null
+        }));
     }
 
-    getBaseURL() {
-        return this.baseURL;
+    /**
+     * Set request timeout
+     */
+    withTimeout(promise, timeout = 10000) {
+        return Promise.race([
+            promise,
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Request timeout')), timeout)
+            )
+        ]);
     }
 
-    // Mock responses for development (remove in production)
-    async mockRequest(endpoint, mockData, delay = 500) {
-        if (process.env.NODE_ENV === 'development') {
-            return new Promise((resolve) => {
-                setTimeout(() => {
-                    resolve(mockData);
-                }, delay);
-            });
+    /**
+     * Retry request with exponential backoff
+     */
+    async retryRequest(endpoint, options = {}, retries = 3, delay = 1000) {
+        try {
+            return await this.request(endpoint, options);
+        } catch (error) {
+            if (retries === 0) throw error;
+            
+            await Helpers.sleep(delay);
+            return this.retryRequest(endpoint, options, retries - 1, delay * 2);
         }
-        return this.request(endpoint);
     }
 }
 
-// Create global instance
-const api = new API();
+// Create global API instance
+const api = new ApiService();
 
-// Add request interceptor for logging (development only)
-if (process.env.NODE_ENV === 'development') {
-    api.addInterceptor({
-        request: (config) => {
-            console.log('API Request:', config);
+// Mock API responses for development
+if (process.env.NODE_ENV === 'development' || !window.API_BASE_URL) {
+    // Mock responses will be used when no real backend is available
+    api.mockResponses = {
+        '/auth/login': {
+            success: true,
+            data: {
+                access_token: 'mock_jwt_token_12345',
+                refresh_token: 'mock_refresh_token_12345',
+                user: {
+                    id: 1,
+                    username: 'demo_user',
+                    email: 'demo@university.edu',
+                    first_name: 'John',
+                    last_name: 'Doe',
+                    role: 'admin'
+                }
+            }
         },
-        response: (response, data) => {
-            console.log('API Response:', { response: response.status, data });
+        '/api/stats': {
+            success: true,
+            stats: {
+                total_labs: 12,
+                total_reservations: 45,
+                pending_requests: 3,
+                utilization_rate: '78%',
+                available_labs: 4
+            }
         }
-    });
+    };
+    
+    // Override request method for development
+    const originalRequest = api.request.bind(api);
+    api.request = async function(endpoint, options) {
+        // Check if we have a mock response
+        if (this.mockResponses && this.mockResponses[endpoint]) {
+            await Helpers.sleep(500); // Simulate network delay
+            return this.mockResponses[endpoint];
+        }
+        
+        // Fall back to original request (which will fail in development without backend)
+        try {
+            return await originalRequest(endpoint, options);
+        } catch (error) {
+            console.warn(`API endpoint ${endpoint} not available, using fallback data`);
+            
+            // Provide fallback data for common endpoints
+            const fallbackData = this.getFallbackData(endpoint);
+            if (fallbackData) {
+                await Helpers.sleep(300);
+                return fallbackData;
+            }
+            
+            throw error;
+        }
+    };
+    
+    api.getFallbackData = function(endpoint) {
+        const fallbacks = {
+            '/api/labs': {
+                success: true,
+                labs: [
+                    {
+                        id: 1,
+                        name: 'Computer Lab A',
+                        capacity: 30,
+                        location: 'Building A, Room 101',
+                        is_active: true,
+                        equipment: '25 PCs, 5 Macs, Projector',
+                        description: 'Main computer lab with standard equipment'
+                    },
+                    {
+                        id: 2,
+                        name: 'Programming Lab B',
+                        capacity: 25,
+                        location: 'Building B, Room 205',
+                        is_active: true,
+                        equipment: 'High-performance PCs, Dual Monitors',
+                        description: 'Advanced programming lab with development tools'
+                    }
+                ]
+            },
+            '/api/reservations': {
+                success: true,
+                reservations: [
+                    {
+                        id: 1,
+                        course_code: 'CS101',
+                        course_name: 'Introduction to Programming',
+                        instructor_name: 'Dr. Smith',
+                        section: 'A',
+                        lab_name: 'Computer Lab A',
+                        start_time: new Date(Date.now() + 86400000).toISOString(),
+                        duration_minutes: 120,
+                        status: 'pending',
+                        purpose: 'Weekly lab session'
+                    }
+                ]
+            }
+        };
+        
+        return fallbacks[endpoint];
+    };
 }
 
-// Add auth interceptor
-api.addInterceptor({
-    response: (response, data) => {
-        if (response.status === 401) {
-            console.warn('Unauthorized request detected');
-        }
-    }
-});
+// Make API available globally
+window.api = api;
 
-// Export for module usage
+// Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
 }
