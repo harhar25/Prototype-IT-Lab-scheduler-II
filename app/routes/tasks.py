@@ -5,6 +5,7 @@ from app.models.task import Task, TaskStatus, TaskPriority
 from app.models.user import User
 from datetime import datetime
 
+# Create the blueprint
 tasks_bp = Blueprint('tasks', __name__)
 
 @tasks_bp.route('/tasks', methods=['GET'])
@@ -18,7 +19,7 @@ def get_tasks():
         status = request.args.get('status')
         priority = request.args.get('priority')
         page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 10))
+        per_page = min(int(request.args.get('per_page', 10)), 50)  # Limit per_page to 50
         
         # Build query
         query = Task.query.filter_by(user_id=current_user_id)
@@ -62,7 +63,7 @@ def create_task():
         data = request.get_json()
         
         # Validate required fields
-        if not data.get('title'):
+        if not data or not data.get('title'):
             return jsonify({
                 'success': False,
                 'message': 'Task title is required'
@@ -74,7 +75,7 @@ def create_task():
             title=data['title'],
             description=data.get('description', ''),
             priority=data.get('priority', TaskPriority.MEDIUM),
-            due_date=datetime.fromisoformat(data['due_date']) if data.get('due_date') else None
+            due_date=datetime.fromisoformat(data['due_date'].replace('Z', '+00:00')) if data.get('due_date') else None
         )
         
         db.session.add(task)
@@ -150,7 +151,7 @@ def update_task(task_id):
         if 'priority' in data:
             task.priority = data['priority']
         if 'due_date' in data:
-            task.due_date = datetime.fromisoformat(data['due_date']) if data.get('due_date') else None
+            task.due_date = datetime.fromisoformat(data['due_date'].replace('Z', '+00:00')) if data.get('due_date') else None
         
         db.session.commit()
         
@@ -213,6 +214,10 @@ def get_task_stats():
             user_id=current_user_id, 
             status=TaskStatus.PENDING
         ).count()
+        in_progress_tasks = Task.query.filter_by(
+            user_id=current_user_id, 
+            status=TaskStatus.IN_PROGRESS
+        ).count()
         
         # Count overdue tasks
         overdue_tasks = Task.query.filter(
@@ -236,6 +241,7 @@ def get_task_stats():
                 'total': total_tasks,
                 'completed': completed_tasks,
                 'pending': pending_tasks,
+                'in_progress': in_progress_tasks,
                 'overdue': overdue_tasks,
                 'priority_distribution': priority_stats
             }

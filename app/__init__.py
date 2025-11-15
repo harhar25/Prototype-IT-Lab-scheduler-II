@@ -34,6 +34,9 @@ def create_app():
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
     
+    # Import models to ensure they are registered with SQLAlchemy
+    from app.models import user, task
+    
     # Register blueprints
     from app.routes.auth import auth_bp
     from app.routes.tasks import tasks_bp
@@ -42,9 +45,6 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(tasks_bp, url_prefix='/api')
     app.register_blueprint(api_bp)
-    
-    # Import models to ensure they are registered with SQLAlchemy
-    from app.models import user, task
     
     # Configure logging
     if not app.debug:

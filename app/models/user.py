@@ -2,6 +2,11 @@ from app import db
 from datetime import datetime
 import uuid
 
+class UserRole:
+    ADMIN = 'admin'
+    INSTRUCTOR = 'instructor' 
+    STUDENT = 'student'
+
 class User(db.Model):
     __tablename__ = 'users'
     
@@ -11,13 +16,14 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(50))
     last_name = db.Column(db.String(50))
+    role = db.Column(db.String(20), default=UserRole.STUDENT, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
-    is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    tasks = db.relationship('Task', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
+    reservations = db.relationship('Reservation', backref='instructor', lazy='dynamic', foreign_keys='Reservation.instructor_id')
+    managed_labs = db.relationship('Lab', backref='admin', lazy='dynamic', foreign_keys='Lab.admin_id')
     
     def to_dict(self):
         return {
@@ -26,10 +32,21 @@ class User(db.Model):
             'email': self.email,
             'first_name': self.first_name,
             'last_name': self.last_name,
+            'role': self.role,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'updated_at': self.updated_at.isoformat(),
+            'full_name': f"{self.first_name} {self.last_name}".strip()
         }
     
+    def is_admin(self):
+        return self.role == UserRole.ADMIN
+    
+    def is_instructor(self):
+        return self.role == UserRole.INSTRUCTOR
+    
+    def is_student(self):
+        return self.role == UserRole.STUDENT
+    
     def __repr__(self):
-        return f'<User {self.username}>'
+        return f'<User {self.username} ({self.role})>'

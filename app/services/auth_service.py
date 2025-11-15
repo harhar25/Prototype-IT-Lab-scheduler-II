@@ -1,5 +1,5 @@
 from app import db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.utils.security import hash_password, verify_password, generate_jwt_token
 from flask import current_app
 import re
@@ -35,6 +35,12 @@ class AuthService:
         if not is_valid:
             return None, message
         
+        # Validate role
+        valid_roles = [UserRole.ADMIN, UserRole.INSTRUCTOR, UserRole.STUDENT]
+        role = data.get('role', UserRole.STUDENT)
+        if role not in valid_roles:
+            return None, "Invalid user role"
+        
         # Check if user exists
         if User.query.filter_by(username=data['username']).first():
             return None, "Username already exists"
@@ -48,7 +54,8 @@ class AuthService:
             email=data['email'],
             password_hash=hash_password(data['password']),
             first_name=data.get('first_name', ''),
-            last_name=data.get('last_name', '')
+            last_name=data.get('last_name', ''),
+            role=role
         )
         
         db.session.add(user)

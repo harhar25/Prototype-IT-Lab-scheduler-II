@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.services.auth_service import AuthService
 from app import limiter
 
+# Create the blueprint
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/register', methods=['POST'])
