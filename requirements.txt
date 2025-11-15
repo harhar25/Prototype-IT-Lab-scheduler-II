@@ -16,5 +16,5 @@ PyJWT==2.8.0
 # Environment & Configuration
 python-dotenv==1.0.0
 
-# Production
+# Production (Optional)
 gunicorn==21.2.0

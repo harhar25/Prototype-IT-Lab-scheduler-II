@@ -1,8 +1,7 @@
-from app import db, jwt
+from app import db
 from app.models.user import User
-from app.utils.security import hash_password, verify_password
-from flask import jsonify
-from flask_jwt_extended import create_access_token, create_refresh_token, get_jwt_identity
+from app.utils.security import hash_password, verify_password, generate_jwt_token
+from flask import current_app
 import re
 
 class AuthService:
@@ -48,8 +47,8 @@ class AuthService:
             username=data['username'],
             email=data['email'],
             password_hash=hash_password(data['password']),
-            first_name=data.get('first_name'),
-            last_name=data.get('last_name')
+            first_name=data.get('first_name', ''),
+            last_name=data.get('last_name', '')
         )
         
         db.session.add(user)
@@ -74,11 +73,36 @@ class AuthService:
             return None, "Account is deactivated"
         
         # Create tokens
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
+        access_token = generate_jwt_token(user.id, 'access')
+        refresh_token = generate_jwt_token(user.id, 'refresh')
         
         return {
             'access_token': access_token,
             'refresh_token': refresh_token,
             'user': user.to_dict()
         }, "Login successful"
+    
+    @staticmethod
+    def refresh_token(refresh_token):
+        from app.utils.security import verify_jwt_token
+        
+        try:
+            payload = verify_jwt_token(refresh_token)
+            if payload.get('type') != 'refresh':
+                return None, "Invalid token type"
+            
+            user_id = payload.get('user_id')
+            user = User.query.get(user_id)
+            
+            if not user or not user.is_active:
+                return None, "User not found or inactive"
+            
+            new_access_token = generate_jwt_token(user.id, 'access')
+            
+            return {
+                'access_token': new_access_token,
+                'user': user.to_dict()
+            }, "Token refreshed successfully"
+            
+        except Exception as e:
+            return None, str(e)
