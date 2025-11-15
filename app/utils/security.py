@@ -5,19 +5,26 @@ from flask import current_app
 
 def hash_password(password):
     """Hash a password using bcrypt"""
+    if isinstance(password, str):
+        password = password.encode('utf-8')
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+    hashed = bcrypt.hashpw(password, salt)
+    return hashed.decode('utf-8')
 
 def verify_password(password, hashed_password):
     """Verify a password against its hash"""
-    return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    if isinstance(password, str):
+        password = password.encode('utf-8')
+    if isinstance(hashed_password, str):
+        hashed_password = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password, hashed_password)
 
 def generate_jwt_token(user_id, token_type='access'):
     """Generate JWT token"""
     if token_type == 'access':
-        expires_delta = current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
+        expires_delta = current_app.config.get('JWT_ACCESS_TOKEN_EXPIRES', timedelta(hours=1))
     else:
-        expires_delta = current_app.config['JWT_REFRESH_TOKEN_EXPIRES']
+        expires_delta = current_app.config.get('JWT_REFRESH_TOKEN_EXPIRES', timedelta(days=30))
     
     expires = datetime.utcnow() + expires_delta
     
@@ -28,18 +35,21 @@ def generate_jwt_token(user_id, token_type='access'):
         'iat': datetime.utcnow()
     }
     
+    secret_key = current_app.config.get('JWT_SECRET_KEY', 'fallback-secret-key')
+    
     return jwt.encode(
         payload, 
-        current_app.config['JWT_SECRET_KEY'], 
+        secret_key, 
         algorithm='HS256'
     )
 
 def verify_jwt_token(token):
     """Verify JWT token"""
     try:
+        secret_key = current_app.config.get('JWT_SECRET_KEY', 'fallback-secret-key')
         payload = jwt.decode(
             token, 
-            current_app.config['JWT_SECRET_KEY'], 
+            secret_key, 
             algorithms=['HS256']
         )
         return payload

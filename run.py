@@ -32,6 +32,17 @@ def create_admin():
     email = input("Enter admin email: ")
     password = getpass.getpass("Enter admin password: ")
     
+    # Check if user already exists
+    existing_user = User.query.filter_by(username=username).first()
+    if existing_user:
+        print(f"User '{username}' already exists!")
+        return
+    
+    existing_email = User.query.filter_by(email=email).first()
+    if existing_email:
+        print(f"Email '{email}' already exists!")
+        return
+    
     admin_user = User(
         username=username,
         email=email,
@@ -58,16 +69,21 @@ def seed_data():
     from datetime import datetime, timedelta
     
     try:
-        # Create sample user
-        user = User(
-            username="demo_user",
-            email="demo@example.com",
-            password_hash=hash_password("demopassword123"),
-            first_name="Demo",
-            last_name="User"
-        )
-        db.session.add(user)
-        db.session.flush()  # Get user ID without committing
+        # Create sample user if it doesn't exist
+        user = User.query.filter_by(username="demo_user").first()
+        if not user:
+            user = User(
+                username="demo_user",
+                email="demo@example.com",
+                password_hash=hash_password("demopassword123"),
+                first_name="Demo",
+                last_name="User"
+            )
+            db.session.add(user)
+            db.session.flush()  # Get user ID without committing
+        
+        # Clear existing tasks for this user
+        Task.query.filter_by(user_id=user.id).delete()
         
         # Create sample tasks
         sample_tasks = [
@@ -127,7 +143,8 @@ def check_config():
     print(f"DEBUG: {app.config['DEBUG']}")
     print(f"TESTING: {app.config['TESTING']}")
     print(f"Database: {app.config['SQLALCHEMY_DATABASE_URI']}")
-    print(f"Secret Key: {'*' * 20}{app.config['SECRET_KEY'][-4:] if app.config['SECRET_KEY'] else 'Not Set'}")
+    print(f"Secret Key Set: {'Yes' if app.config['SECRET_KEY'] else 'No'}")
+    print(f"JWT Secret Key Set: {'Yes' if app.config['JWT_SECRET_KEY'] else 'No'}")
 
 if __name__ == '__main__':
     # Create logs directory if it doesn't exist

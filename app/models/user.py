@@ -17,7 +17,7 @@ class User(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    tasks = db.relationship('Task', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    tasks = db.relationship('Task', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
     
     def to_dict(self):
         return {
@@ -30,3 +30,6 @@ class User(db.Model):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
+    
+    def __repr__(self):
+        return f'<User {self.username}>'

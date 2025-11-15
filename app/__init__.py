@@ -10,6 +10,7 @@ from logging.handlers import RotatingFileHandler
 import os
 from datetime import timedelta
 
+# Initialize extensions
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
@@ -41,6 +42,9 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(tasks_bp, url_prefix='/api')
     app.register_blueprint(api_bp)
+    
+    # Import models to ensure they are registered with SQLAlchemy
+    from app.models import user, task
     
     # Configure logging
     if not app.debug:
