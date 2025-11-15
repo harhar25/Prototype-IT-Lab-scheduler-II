@@ -958,3 +958,294 @@ body {
         align-items: flex-start;
     }
 }
+
+.user-role {
+    background: var(--primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.dashboard-tabs {
+    margin-top: var(--space-xl);
+}
+
+.tab-buttons {
+    display: flex;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: var(--space-lg);
+}
+
+.tab-buttons .tab-btn {
+    padding: var(--space-md) var(--space-lg);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+}
+
+.tab-buttons .tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Reservation Cards */
+.reservation-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-md);
+    border-left: 4px solid var(--primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.reservation-card.pending {
+    border-left-color: var(--warning);
+}
+
+.reservation-card.approved {
+    border-left-color: var(--success);
+}
+
+.reservation-card.rejected {
+    border-left-color: var(--error);
+}
+
+.reservation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.reservation-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.reservation-details {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.reservation-details p {
+    margin: var(--space-xs) 0;
+}
+
+.reservation-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+/* Lab Cards */
+.lab-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-md);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.lab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.lab-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.lab-status {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.lab-status.active {
+    background: var(--success);
+    color: white;
+}
+
+.lab-status.inactive {
+    background: var(--error);
+    color: white;
+}
+
+.lab-details {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.lab-details p {
+    margin: var(--space-xs) 0;
+}
+
+.lab-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+/* Schedule View */
+.schedule-filters {
+    display: flex;
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
+    padding: var(--space-lg);
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-light);
+    flex-wrap: wrap;
+}
+
+.schedule-slot {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-md);
+    border-left: 4px solid var(--success);
+    box-shadow: var(--shadow-sm);
+}
+
+.slot-time {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+.slot-details h4 {
+    margin: 0 0 var(--space-sm) 0;
+    color: var(--text-primary);
+}
+
+.slot-details p {
+    margin: var(--space-xs) 0;
+    color: var(--text-secondary);
+}
+
+/* Form Improvements */
+.form-actions {
+    display: flex;
+    gap: var(--space-md);
+    margin-top: var(--space-xl);
+}
+
+.w-100 {
+    width: 100%;
+}
+
+.forgot-password {
+    color: var(--primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.forgot-password:hover {
+    text-decoration: underline;
+}
+
+/* Header Actions */
+.header-actions {
+    display: flex;
+    gap: var(--space-md);
+    align-items: center;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: var(--space-2xl);
+    color: var(--text-secondary);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: var(--text-light);
+    margin-bottom: var(--space-lg);
+}
+
+.empty-state h3 {
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+
+/* Status Badges */
+.status-badge {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-approved {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-rejected {
+    background: #fecaca;
+    color: #991b1b;
+}
+
+/* Responsive Improvements */
+@media (max-width: 768px) {
+    .reservation-header,
+    .lab-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-sm);
+    }
+    
+    .reservation-actions,
+    .lab-actions {
+        flex-direction: column;
+    }
+    
+    .tab-buttons {
+        flex-direction: column;
+    }
+    
+    .header-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .header-actions .btn {
+        width: 100%;
+    }
+    
+    .schedule-filters {
+        flex-direction: column;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+}
