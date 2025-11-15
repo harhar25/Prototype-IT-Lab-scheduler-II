@@ -9,9 +9,19 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app = Flask(__name__, 
+            template_folder='templates',
+            static_folder='static')
 app.secret_key = 'your-secret-key-here'  # Change in production
 CORS(app)
+
+# Ensure directories exist
+def ensure_directories():
+    directories = ['templates', 'static/css', 'static/js']
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+
+ensure_directories()
 
 # In-memory storage (replace with database in production)
 users_db = {}
