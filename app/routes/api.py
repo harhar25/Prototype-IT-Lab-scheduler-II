@@ -1,16 +1,20 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.user import User
 
-# Create the blueprint
 api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/')
 def index():
+    """Serve the main application"""
+    return render_template('index.html')
+
+@api_bp.route('/api')
+def api_index():
     """API Home"""
     return jsonify({
         'success': True,
-        'message': 'Enterprise Task Manager API',
+        'message': 'IT Lab Scheduler API',
         'version': '1.0.0',
         'endpoints': {
             'auth': {
@@ -19,17 +23,13 @@ def index():
                 'refresh': 'POST /auth/refresh',
                 'logout': 'POST /auth/logout'
             },
-            'tasks': {
-                'list': 'GET /api/tasks',
-                'create': 'POST /api/tasks',
-                'get': 'GET /api/tasks/<id>',
-                'update': 'PUT /api/tasks/<id>',
-                'delete': 'DELETE /api/tasks/<id>',
-                'stats': 'GET /api/tasks/stats'
-            },
-            'api': {
-                'profile': 'GET /profile',
-                'health': 'GET /health'
+            'labs': {
+                'list': 'GET /api/labs',
+                'create': 'POST /api/labs',
+                'reservations': 'GET /api/reservations',
+                'create_reservation': 'POST /api/reservations',
+                'schedule': 'GET /api/schedule',
+                'stats': 'GET /api/stats'
             }
         }
     })
@@ -67,5 +67,5 @@ def health_check():
         'success': True,
         'status': 'healthy',
         'timestamp': datetime.utcnow().isoformat() + 'Z',
-        'service': 'Enterprise Task Manager API'
+        'service': 'IT Lab Scheduler API'
     })

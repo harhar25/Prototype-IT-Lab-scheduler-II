@@ -35,16 +35,16 @@ def create_app():
     app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
     
     # Import models to ensure they are registered with SQLAlchemy
-    from app.models import user, task
+    from app.models import user, lab
     
-    # Register blueprints
+    # Register blueprints - IMPORTANT: api_bp should be registered last
     from app.routes.auth import auth_bp
-    from app.routes.tasks import tasks_bp
+    from app.routes.labs import labs_bp
     from app.routes.api import api_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(tasks_bp, url_prefix='/api')
-    app.register_blueprint(api_bp)
+    app.register_blueprint(labs_bp, url_prefix='/api')
+    app.register_blueprint(api_bp)  # This should be last since it has the root route
     
     # Configure logging
     if not app.debug:
@@ -57,6 +57,6 @@ def create_app():
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
         app.logger.setLevel(logging.INFO)
-        app.logger.info('Enterprise Task Manager startup')
+        app.logger.info('IT Lab Scheduler startup')
     
     return app
