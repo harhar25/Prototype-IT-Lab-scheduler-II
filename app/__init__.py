@@ -17,7 +17,9 @@ jwt = JWTManager()
 limiter = Limiter(key_func=get_remote_address)
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, 
+                template_folder='../templates',
+                static_folder='../static')
     
     # Load configuration
     app.config.from_object('app.config.Config')
@@ -37,14 +39,14 @@ def create_app():
     # Import models to ensure they are registered with SQLAlchemy
     from app.models import user, lab
     
-    # Register blueprints - IMPORTANT: api_bp should be registered last
+    # Register blueprints
     from app.routes.auth import auth_bp
     from app.routes.labs import labs_bp
     from app.routes.api import api_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(labs_bp, url_prefix='/api')
-    app.register_blueprint(api_bp)  # This should be last since it has the root route
+    app.register_blueprint(api_bp)
     
     # Configure logging
     if not app.debug:
