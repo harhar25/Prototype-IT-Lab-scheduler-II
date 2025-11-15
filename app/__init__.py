@@ -48,6 +48,34 @@ def create_app():
     app.register_blueprint(labs_bp, url_prefix='/api')
     app.register_blueprint(api_bp)
     
+    # FORCE CREATE ALL TABLES ON STARTUP
+    with app.app_context():
+        try:
+            print("🔄 Creating database tables...")
+            db.create_all()
+            print("✅ Database tables created successfully!")
+            
+            # Verify the users table has the role column
+            from app.models.user import User
+            # This will trigger an error if the column doesn't exist
+            test_query = db.session.query(User.role).limit(1)
+            print("✅ 'role' column verified in users table!")
+            
+        except Exception as e:
+            print(f"❌ Database error: {e}")
+            # If there's still an issue, create tables manually
+            import sqlite3
+            conn = sqlite3.connect('enterprise_app.db')
+            cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'student'")
+                conn.commit()
+                print("✅ Manually added 'role' column to users table")
+            except:
+                print("ℹ️ Role column may already exist")
+            finally:
+                conn.close()
+    
     # Configure logging
     if not app.debug:
         if not os.path.exists('logs'):

@@ -32,9 +32,14 @@ def register():
         }), 201
         
     except Exception as e:
+        # Add detailed error logging
+        import traceback
+        print(f"Registration route error: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        
         return jsonify({
             'success': False,
-            'message': 'Registration failed'
+            'message': f'Registration failed: {str(e)}'
         }), 500
 
 @auth_bp.route('/login', methods=['POST'])
