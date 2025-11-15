@@ -1,5 +1,5 @@
 /**
- * Enterprise IT Lab Scheduler - Enhanced Stable Edition
+ * Enterprise IT Lab Scheduler - Complete Enhanced Version
  * Advanced Laboratory Management System
  */
 
@@ -41,8 +41,8 @@ class ITLabScheduler {
             language: 'en',
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             itemsPerPage: 25,
-            enableAI: false, // Disabled by default for stability
-            enableOffline: false // Disabled by default
+            enableAI: false,
+            enableOffline: false
         };
         return { ...defaults, ...JSON.parse(localStorage.getItem('app_settings') || '{}') };
     }
@@ -86,10 +86,21 @@ class ITLabScheduler {
             return;
         }
         
-        // Quick actions
+        // Data actions
         if (target.closest('[data-action]')) {
-            const action = target.closest('[data-action]').dataset.action;
-            this.handleAction(action);
+            const actionElement = target.closest('[data-action]');
+            const action = actionElement.dataset.action;
+            this.handleAction(action, actionElement);
+            return;
+        }
+        
+        // Auth tabs
+        if (target.closest('.auth-tabs .tab-btn')) {
+            const tabButton = target.closest('.auth-tabs .tab-btn');
+            const tabName = tabButton.dataset.tab;
+            if (tabName) {
+                this.showAuthTab(tabName);
+            }
             return;
         }
     }
@@ -101,13 +112,19 @@ class ITLabScheduler {
         }
     }
 
-    handleAction(action) {
+    handleAction(action, element) {
         const actionMap = {
             'create-lab': () => this.showCreateLabModal(),
             'create-reservation': () => this.showCreateReservationModal(),
             'view-schedule': () => this.showScheduleView(),
             'refresh': () => this.refreshData(),
-            'logout': () => this.handleLogout()
+            'logout': () => this.handleLogout(),
+            'show-login': () => this.showAuthTab('login'),
+            'show-register': () => this.showAuthTab('register'),
+            'show-tab': () => {
+                const tab = element.dataset.tab;
+                this.showEnhancedTab(tab);
+            }
         };
 
         if (actionMap[action]) {
@@ -142,6 +159,12 @@ class ITLabScheduler {
             this.theme = theme;
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
+            
+            // Update theme icon if exists
+            const themeIcon = document.querySelector('[data-theme-toggle] i');
+            if (themeIcon) {
+                themeIcon.className = this.theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
         } catch (error) {
             console.error('Theme setting failed:', error);
         }
@@ -178,16 +201,16 @@ class ITLabScheduler {
 
         container.innerHTML = `
             <div class="auth-tabs">
-                <button class="tab-btn active" data-action="show-login">
+                <button class="tab-btn active" data-tab="login" data-action="show-login">
                     <i class="fas fa-sign-in-alt"></i> Sign In
                 </button>
-                <button class="tab-btn" data-action="show-register">
+                <button class="tab-btn" data-tab="register" data-action="show-register">
                     <i class="fas fa-user-plus"></i> Sign Up
                 </button>
             </div>
 
             <div id="login-tab" class="tab-content active">
-                <form id="login-form" onsubmit="app.handleLogin(event)">
+                <form id="login-form">
                     <div class="form-group">
                         <label class="form-label" for="login-email">Email or Username</label>
                         <input type="text" id="login-email" class="form-input" placeholder="Enter your email or username" required>
@@ -197,7 +220,7 @@ class ITLabScheduler {
                         <input type="password" id="login-password" class="form-input" placeholder="Enter your password" required>
                     </div>
                     <div class="form-group">
-                        <a href="#" class="forgot-password">Forgot Password?</a>
+                        <a href="#" class="forgot-password" data-action="forgot-password">Forgot Password?</a>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">
                         <i class="fas fa-sign-in-alt"></i> Sign In
@@ -206,7 +229,7 @@ class ITLabScheduler {
             </div>
 
             <div id="register-tab" class="tab-content">
-                <form id="register-form" onsubmit="app.handleRegister(event)">
+                <form id="register-form">
                     <div class="form-group">
                         <label class="form-label" for="register-username">Username</label>
                         <input type="text" id="register-username" class="form-input" placeholder="Choose a username" required>
@@ -242,6 +265,57 @@ class ITLabScheduler {
                 </form>
             </div>
         `;
+
+        // Bind form events after rendering
+        this.bindAuthEvents();
+    }
+
+    bindAuthEvents() {
+        // Login form
+        const loginForm = document.getElementById('login-form');
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleLogin(e);
+            });
+        }
+
+        // Register form
+        const registerForm = document.getElementById('register-form');
+        if (registerForm) {
+            registerForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleRegister(e);
+            });
+        }
+
+        // Forgot password
+        const forgotPassword = document.querySelector('.forgot-password');
+        if (forgotPassword) {
+            forgotPassword.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.handleForgotPassword();
+            });
+        }
+    }
+
+    showAuthTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Remove active class from all tab buttons
+        document.querySelectorAll('.auth-tabs .tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        const targetTab = document.getElementById(`${tabName}-tab`);
+        const targetButton = document.querySelector(`.auth-tabs [data-tab="${tabName}"]`);
+        
+        if (targetTab) targetTab.classList.add('active');
+        if (targetButton) targetButton.classList.add('active');
     }
 
     async handleLogin(event) {
@@ -249,9 +323,17 @@ class ITLabScheduler {
         this.showLoading(true);
         
         try {
+            const email = document.getElementById('login-email')?.value;
+            const password = document.getElementById('login-password')?.value;
+
+            if (!email || !password) {
+                notification.error('Please fill in all required fields');
+                return;
+            }
+
             const response = await api.post('/auth/login', {
-                login: document.getElementById('login-email').value,
-                password: document.getElementById('login-password').value
+                login: email,
+                password: password
             });
 
             if (response.success) {
@@ -266,7 +348,8 @@ class ITLabScheduler {
                 notification.show(`Welcome back, ${this.currentUser.first_name || this.currentUser.username}!`, 'success');
             }
         } catch (error) {
-            notification.show(error.message, 'error');
+            console.error('Login error:', error);
+            notification.show(error.message || 'Login failed. Please try again.', 'error');
         } finally {
             this.showLoading(false);
         }
@@ -277,33 +360,49 @@ class ITLabScheduler {
         this.showLoading(true);
         
         try {
+            const username = document.getElementById('register-username')?.value;
+            const email = document.getElementById('register-email')?.value;
+            const password = document.getElementById('register-password')?.value;
+            const firstName = document.getElementById('register-firstname')?.value;
+            const lastName = document.getElementById('register-lastname')?.value;
+            const role = document.getElementById('register-role')?.value;
+
+            // Basic validation
+            if (!username || !email || !password || !role) {
+                notification.error('Please fill in all required fields');
+                return;
+            }
+
+            if (password.length < 6) {
+                notification.error('Password must be at least 6 characters long');
+                return;
+            }
+
             const response = await api.post('/auth/register', {
-                username: document.getElementById('register-username').value,
-                email: document.getElementById('register-email').value,
-                password: document.getElementById('register-password').value,
-                first_name: document.getElementById('register-firstname').value,
-                last_name: document.getElementById('register-lastname').value,
-                role: document.getElementById('register-role').value
+                username: username,
+                email: email,
+                password: password,
+                first_name: firstName,
+                last_name: lastName,
+                role: role
             });
 
             if (response.success) {
                 notification.show('Account created successfully! Please sign in.', 'success');
                 this.showAuthTab('login');
-                document.getElementById('register-form').reset();
+                // Clear the form
+                document.getElementById('register-form')?.reset();
             }
         } catch (error) {
-            notification.show(error.message, 'error');
+            console.error('Registration error:', error);
+            notification.show(error.message || 'Registration failed. Please try again.', 'error');
         } finally {
             this.showLoading(false);
         }
     }
 
-    showAuthTab(tabName) {
-        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        
-        document.getElementById(`${tabName}-tab`).classList.add('active');
-        event.target.classList.add('active');
+    handleForgotPassword() {
+        notification.info('Password reset feature would open here');
     }
 
     showDashboard() {
@@ -396,6 +495,24 @@ class ITLabScheduler {
                 ${tab.label}
             </button>
         `).join('');
+    }
+
+    showEnhancedTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Remove active class from all tab buttons
+        document.querySelectorAll('.tabs-navigation .tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        
+        this.currentTab = tabName;
     }
 
     getAdminDashboard() {
@@ -1066,15 +1183,13 @@ class ITLabScheduler {
         `).join('');
     }
 
-    // Modal methods (keep your existing modal methods)
+    // Modal methods
     showCreateLabModal() {
-        // Your existing modal implementation
-        console.log('Show create lab modal');
+        notification.info('Create lab modal would open here');
     }
 
     showCreateReservationModal() {
-        // Your existing modal implementation
-        console.log('Show create reservation modal');
+        notification.info('Create reservation modal would open here');
     }
 
     showScheduleView() {
@@ -1163,25 +1278,69 @@ class ITLabScheduler {
             notification.show('Logged out successfully', 'info');
         }
     }
+
+    // Additional methods for reservation actions
+    async approveReservation(reservationId) {
+        try {
+            const response = await api.post(`/api/reservations/${reservationId}/approve`, {});
+            if (response.success) {
+                notification.show('Reservation approved!', 'success');
+                await this.loadDashboardData();
+            }
+        } catch (error) {
+            notification.show(error.message, 'error');
+        }
+    }
+
+    async rejectReservation(reservationId) {
+        const reason = prompt('Please enter rejection reason:');
+        if (reason === null) return;
+
+        try {
+            const response = await api.post(`/api/reservations/${reservationId}/reject`, {
+                rejection_reason: reason
+            });
+            if (response.success) {
+                notification.show('Reservation rejected!', 'success');
+                await this.loadDashboardData();
+            }
+        } catch (error) {
+            notification.show(error.message, 'error');
+        }
+    }
+
+    async editLab(labId) {
+        notification.info(`Edit lab ${labId} functionality would open here`);
+    }
+
+    async deleteLab(labId) {
+        if (confirm('Are you sure you want to delete this lab?')) {
+            try {
+                const response = await api.delete(`/api/labs/${labId}`);
+                if (response.success) {
+                    notification.show('Lab deleted successfully!', 'success');
+                    await this.loadDashboardData();
+                }
+            } catch (error) {
+                notification.show(error.message, 'error');
+            }
+        }
+    }
 }
 
-// Safe initialization
-if (typeof api !== 'undefined' && typeof notification !== 'undefined') {
-    try {
-        const app = new ITLabScheduler();
-        window.app = app;
-    } catch (error) {
-        console.error('Failed to initialize application:', error);
-        document.body.innerHTML = `
-            <div class="error-screen">
-                <div class="error-content">
-                    <h1>😵 Application Failed to Load</h1>
-                    <p>Please refresh the page or check your console for errors.</p>
-                    <button onclick="window.location.reload()">Reload Page</button>
-                </div>
+// Initialize the application
+try {
+    const app = new ITLabScheduler();
+    window.app = app;
+} catch (error) {
+    console.error('Failed to initialize application:', error);
+    document.body.innerHTML = `
+        <div class="error-screen">
+            <div class="error-content">
+                <h1>😵 Application Failed to Load</h1>
+                <p>Please refresh the page or check your console for errors.</p>
+                <button onclick="window.location.reload()">Reload Page</button>
             </div>
-        `;
-    }
-} else {
-    console.error('Required dependencies (api, notification) are not available');
+        </div>
+    `;
 }
